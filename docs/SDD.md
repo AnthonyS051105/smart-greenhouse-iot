@@ -13,15 +13,17 @@ Subsistem IoT terdiri dari 2 firmware terpisah pada 2 board. Keduanya berkomunik
 │      ESP32 UTAMA            │     │      ESP32-CAM           │
 │  ┌──────────────────────┐  │     │  ┌────────────────────┐  │
 │  │ SensorManager        │  │     │  │ CameraCapture      │  │
-│  │ (DHT11, BME280, MQ)  │  │     │  │ (ambil JPEG)       │  │
-│  ├──────────────────────┤  │     │  ├────────────────────┤  │
-│  │ ActuatorManager      │  │     │  │ HttpUploader       │  │
-│  │ (2×Servo)            │  │     │  │ (POST /images)     │  │
-│  ├──────────────────────┤  │     │  └────────────────────┘  │
-│  │ MqttClient           │  │     │  ┌────────────────────┐  │
-│  │ (pub/sub)            │  │     │  │ WifiManager        │  │
-│  ├──────────────────────┤  │     │  └────────────────────┘  │
-│  │ DisplayManager (OLED)│  │     └──────────────────────────┘
+│  │ (DHT11, Soil         │  │     │  │ (ambil JPEG)       │  │
+│  │  Moisture v1.2,      │  │     │  ├────────────────────┤  │
+│  │  BH1750)             │  │     │  │ HttpUploader       │  │
+│  ├──────────────────────┤  │     │  │ (POST /images)     │  │
+│  │ ActuatorManager      │  │     │  └────────────────────┘  │
+│  │ (2×Servo)            │  │     │  ┌────────────────────┐  │
+│  ├──────────────────────┤  │     │  │ WifiManager        │  │
+│  │ MqttClient           │  │     │  └────────────────────┘  │
+│  │ (pub/sub)            │  │     └──────────────────────────┘
+│  ├──────────────────────┤  │
+│  │ DisplayManager (OLED)│  │
 │  ├──────────────────────┤  │
 │  │ FallbackController   │  │
 │  ├──────────────────────┤  │
@@ -50,18 +52,19 @@ Subsistem IoT terdiri dari 2 firmware terpisah pada 2 board. Keduanya berkomunik
 
 ### 2.3 `SensorManager`
 - **Tanggung jawab:** baca semua sensor, susun payload.
-- **Library:** DHT, Adafruit_BME280.
-- **Fungsi kunci:** `readAll() → SensorData`, `toJson(SensorData) → String`.
+- **Library:** DHT (DHT11), BH1750 (adafruit/claws BH1750 I2C library). Soil moisture dibaca langsung via `analogRead()` (tanpa library khusus), dipetakan ke persentase.
+- **Fungsi kunci:** `readAll() → SensorData`, `toJson(SensorData) → String`, `mapSoilMoisture(rawAdc) → float` (kalibrasi nilai ADC kering/basah ke rentang 0–100%).
 - **Struktur data:**
   ```cpp
   struct SensorData {
     float temperature;
     float humidity;
-    float pressure;
-    int gas_level;   // -1 jika tidak ada MQ
+    float soil_moisture;    // %, hasil pemetaan dari analogRead()
+    float light_intensity;  // lux, dari BH1750
     unsigned long timestamp;
   };
   ```
+- **Kalibrasi soil moisture:** simpan konstanta `SOIL_DRY_RAW` (nilai ADC di udara/tanah kering) & `SOIL_WET_RAW` (nilai ADC di air/tanah basah penuh) di `config.h`; petakan linear via `map()`/interpolasi ke 0–100%, lalu `constrain()` agar tidak keluar rentang.
 
 ### 2.4 `ActuatorManager`
 - **Tanggung jawab:** kendali 2 servo.
@@ -83,7 +86,7 @@ Subsistem IoT terdiri dari 2 firmware terpisah pada 2 board. Keduanya berkomunik
 - **Aturan:**
   - Jika `!mqtt.isConnected()` selama > 60 dtk → `mode = fallback`.
   - Suhu > 32°C → `openVentilation()`.
-  - Kelembapan < ambang & tidak ada update → `openIrrigation(short)`.
+  - `soil_moisture` < ambang (mis. 30%) → `openIrrigation(short)`.
 - **Kembali online:** saat MQTT reconnect, `mode = online`, kirim status.
 
 ### 2.7 Loop Utama (pseudocode)
@@ -133,8 +136,8 @@ Sama seperti ESP32 utama.
 | Pin ESP32 | Terhubung ke |
 |-----------|--------------|
 | GPIO (digital) | DHT11 data |
-| GPIO21 (SDA), GPIO22 (SCL) | BME280 & OLED (I2C bus bersama) |
-| GPIO (analog/ADC) | MQ AO (opsional) |
+| GPIO21 (SDA), GPIO22 (SCL) | BH1750 & OLED (I2C bus bersama, alamat berbeda: BH1750 `0x23`, OLED `0x3C`) |
+| GPIO (analog/ADC) | Capacitive Soil Moisture Sensor v1.2 AO |
 | GPIO (PWM) | Servo 1 (irigasi) signal |
 | GPIO (PWM) | Servo 2 (ventilasi) signal |
 | 5V, GND | Catu daya servo (eksternal jika perlu) |

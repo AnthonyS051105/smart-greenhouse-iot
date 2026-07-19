@@ -16,7 +16,7 @@ Repo ini adalah **subsistem IoT**: firmware untuk 2 board ESP32 yang membaca sen
 
 ## Peran Repo Ini dalam Sistem
 
-- Membaca sensor (DHT11, BME280, MQ opsional) → kirim ke backend via MQTT.
+- Membaca sensor (DHT11, Capacitive Soil Moisture Sensor v1.2, BH1750) → kirim ke backend via MQTT.
 - Menerima command dari backend → gerakkan servo (irigasi & ventilasi).
 - ESP32-CAM ambil citra → kirim ke backend via HTTP.
 - Fallback lokal saat offline.
@@ -29,7 +29,7 @@ Repo ini adalah **subsistem IoT**: firmware untuk 2 board ESP32 yang membaca sen
 
 - **Bahasa:** C++ (Arduino framework).
 - **Board:** ESP32 DevKit (utama) + ESP32-CAM (terpisah).
-- **Library utama:** PubSubClient (MQTT), ArduinoJson, DHT, Adafruit_BME280, Adafruit_SSD1306, ESP32Servo, esp_camera, HTTPClient.
+- **Library utama:** PubSubClient (MQTT), ArduinoJson, DHT, BH1750 (I2C), Adafruit_SSD1306, ESP32Servo, esp_camera, HTTPClient. Capacitive Soil Moisture Sensor v1.2 dibaca langsung via `analogRead()`, tanpa library khusus.
 - **Tools:** Arduino IDE / PlatformIO, Wokwi (wiring diagram).
 
 ---

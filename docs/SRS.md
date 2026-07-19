@@ -12,7 +12,7 @@ Mendefinisikan kebutuhan perangkat lunak (firmware) dan perangkat keras untuk su
 
 ### 1.2 Ruang Lingkup
 Subsistem IoT mencakup 2 board:
-- **ESP32 utama:** membaca DHT11, BME280, MQ (opsional); menampilkan status di OLED; menggerakkan 2 servo (irigasi & ventilasi); komunikasi MQTT.
+- **ESP32 utama:** membaca DHT11 (suhu & kelembapan udara), Capacitive Soil Moisture Sensor v1.2 (kelembapan tanah), BH1750 (intensitas cahaya); menampilkan status di OLED; menggerakkan 2 servo (irigasi & ventilasi); komunikasi MQTT.
 - **ESP32-CAM:** mengambil citra tanaman berkala; mengirim via HTTP POST ke backend.
 
 ### 1.3 Definisi
@@ -33,6 +33,8 @@ Subsistem IoT adalah "indera & tangan" sistem: membaca kondisi greenhouse dan me
 ### 2.3 Batasan Perangkat Keras
 - ESP32-CAM memiliki GPIO terbatas (banyak dipakai modul kamera) → tidak dibebani sensor/servo.
 - Servo SG90: torsi ~1.8 kg/cm, ditenagai 5V; >2 servo perlu catu daya eksternal.
+- Capacitive Soil Moisture Sensor v1.2 memakai 1 pin analog (ADC) ESP32; rawan drift pembacaan bila tidak dikalibrasi (nilai kering/basah) sebelum dipetakan ke persentase.
+- BH1750 memakai bus I2C yang sama dengan OLED — pastikan alamat I2C berbeda (default BH1750 `0x23`, alternatif `0x5C`; OLED SSD1306 umumnya `0x3C`).
 
 ---
 
@@ -41,9 +43,9 @@ Subsistem IoT adalah "indera & tangan" sistem: membaca kondisi greenhouse dan me
 ### 3.1 Akuisisi Data Sensor
 | ID | Kebutuhan | Prioritas |
 |----|-----------|-----------|
-| IOT-FR-01 | ESP32 membaca suhu & kelembapan dari DHT11 setiap 5–10 menit. | Wajib |
-| IOT-FR-02 | ESP32 membaca suhu, kelembapan, tekanan dari BME280 setiap 5–10 menit. | Wajib |
-| IOT-FR-03 | ESP32 membaca kadar gas dari MQ setiap 10–15 menit (opsional). | Opsional |
+| IOT-FR-01 | ESP32 membaca suhu & kelembapan udara dari DHT11 setiap 5–10 menit. | Wajib |
+| IOT-FR-02 | ESP32 membaca kelembapan tanah dari Capacitive Soil Moisture Sensor v1.2 (pin analog/ADC) setiap 5–10 menit, dipetakan ke persentase (0–100%) hasil kalibrasi. | Wajib |
+| IOT-FR-03 | ESP32 membaca intensitas cahaya (lux) dari sensor BH1750 (I2C) setiap 5–10 menit. | Wajib |
 | IOT-FR-04 | ESP32 menyusun payload JSON sesuai `data-contracts.md` §1.1. | Wajib |
 
 ### 3.2 Komunikasi
@@ -68,7 +70,7 @@ Subsistem IoT adalah "indera & tangan" sistem: membaca kondisi greenhouse dan me
 |----|-----------|-----------|
 | IOT-FR-14 | OLED menampilkan suhu, kelembapan, status koneksi, & status aktuator terkini. | Wajib |
 | IOT-FR-15 | Saat koneksi broker terputus > 60 detik, ESP32 masuk mode fallback & jalankan threshold lokal. | Wajib |
-| IOT-FR-16 | Threshold fallback: suhu > 32°C → buka ventilasi; kelembapan tidak update & di bawah ambang → buka irigasi singkat. | Wajib |
+| IOT-FR-16 | Threshold fallback: suhu > 32°C → buka ventilasi; kelembapan tanah < ambang (mis. 30%) → buka irigasi singkat. | Wajib |
 | IOT-FR-17 | Saat koneksi pulih, ESP32 kembali ke mode online & lapor status. | Wajib |
 | IOT-FR-18 | OLED/serial menampilkan pairing code / device_id untuk proses pairing di app. | Sebaiknya |
 
@@ -98,9 +100,9 @@ Subsistem IoT adalah "indera & tangan" sistem: membaca kondisi greenhouse dan me
 |----------|-------------|--------|
 | ESP32 DevKit | Mikrokontroler utama, WiFi | 1 |
 | ESP32-CAM | Board kamera terpisah | 1 |
-| DHT11 | Sensor suhu & kelembapan | 1 |
-| BME280 | Sensor suhu, kelembapan, tekanan (I2C) | 1 |
-| MQ series | Sensor gas (opsional) | 0–1 |
+| DHT11 | Sensor suhu & kelembapan udara | 1 |
+| Capacitive Soil Moisture Sensor v1.2 | Sensor kelembapan tanah (analog/ADC) | 1 |
+| BH1750 | Sensor intensitas cahaya, lux (I2C) | 1 |
 | OLED SSD1306 | Display 128×64 (I2C) | 1 |
 | Servo SG90 | Aktuator (pinch-valve & louver) | 2 |
 | Selang silikon lunak | Untuk mekanisme pinch-valve | 1 |
