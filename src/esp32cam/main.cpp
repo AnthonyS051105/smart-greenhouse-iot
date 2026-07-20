@@ -1,9 +1,7 @@
 // Firmware ESP32-CAM — Smart Greenhouse
 //
 // Mengambil citra tanaman berkala & mengirim ke backend via HTTP POST
-// multipart (shared/data-contracts.md §2). Backend belum live saat ini
-// (lihat memory proyek) -- upload akan gagal & di-retry, ini normal;
-// kode tetap lengkap agar siap begitu backend tersedia.
+// multipart (shared/data-contracts.md §2). Backend sudah live di Railway.
 //
 // Board terpisah dari ESP32 utama (Architecture.md ADR-05), tidak
 // berkomunikasi langsung dengan MQTT/servo/DHT11.
@@ -14,8 +12,7 @@
 #include "CameraCapture.h"
 #include "HttpUploader.h"
 
-// TODO: ganti dengan URL backend Railway sesungguhnya setelah tersedia.
-#define BACKEND_IMAGES_URL "https://GANTI-DENGAN-URL-BACKEND.up.railway.app/images"
+#define BACKEND_IMAGES_URL "https://smart-greenhouse-backend-production.up.railway.app/images"
 #define PLOT_ID_FOR_CAM     PLOT_ID
 
 static const unsigned long CAPTURE_INTERVAL_MS = 60UL * 60UL * 1000UL; // 1 jam
