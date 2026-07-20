@@ -28,11 +28,13 @@ void setup() {
   delay(500);
   Serial.println("\n=== Smart Greenhouse - ESP32-CAM ===");
 
-  wifiManager.begin();
-
+  // Kamera WAJIB diinisialisasi SEBELUM WiFi (lihat CameraCapture::begin()
+  // untuk detail root cause "DMA overflow").
   if (!cameraCapture.begin()) {
     Serial.println("[Setup] Inisialisasi kamera gagal, cek wiring/power.");
   }
+
+  wifiManager.begin();
 }
 
 void loop() {

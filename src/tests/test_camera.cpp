@@ -13,7 +13,11 @@
 CameraCapture cameraCapture;
 
 void setup() {
+#ifdef DIAG_BAUD_9600
+  Serial.begin(9600); // Diagnostik noise sinyal -- lihat iot/CLAUDE.md
+#else
   Serial.begin(115200);
+#endif
   delay(500);
   Serial.println("=== TEST ESP32-CAM ===");
 

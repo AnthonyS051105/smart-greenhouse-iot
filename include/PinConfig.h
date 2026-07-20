@@ -10,7 +10,10 @@
 
 #define PIN_DHT11              18   // DHT11 data pin
 #define PIN_SERVO              19   // Servo generik (irigasi/ventilasi)
-#define PIN_SOIL_MOISTURE      25   // Capacitive Soil Moisture Sensor v1.2 (ADC)
+// Soil Moisture WAJIB di pin ADC1 (bukan ADC2) -- ADC2 tidak bisa dipakai
+// bersamaan WiFi aktif (keterbatasan hardware ESP32, lihat esp-idf ADC
+// limitations). GPIO25 (pin lama) adalah ADC2 -> pindah ke GPIO32 (ADC1).
+#define PIN_SOIL_MOISTURE      32   // Capacitive Soil Moisture Sensor v1.2 (ADC1)
 #define PIN_BH1750_SDA         21   // BH1750 I2C SDA
 #define PIN_BH1750_SCL         22   // BH1750 I2C SCL
 
@@ -18,10 +21,10 @@
 
 // Kalibrasi Soil Moisture Sensor v1.2: nilai ADC mentah di kondisi kering
 // (di udara) dan basah penuh (dicelup air), dipetakan linear ke 0-100%.
-// Nilai default berikut adalah PERKIRAAN AWAL untuk ESP32 ADC 12-bit
-// (0-4095) -- WAJIB dikalibrasi ulang dengan sensor fisik sebelum demo
-// (lihat src/tests/test_soil_moisture.cpp untuk membaca nilai raw).
-#define SOIL_MOISTURE_DRY_RAW   3000
-#define SOIL_MOISTURE_WET_RAW   1200
+// Nilai berikut dikalibrasi di pin lama (GPIO25/ADC2) -- WAJIB dikalibrasi
+// ULANG dengan pio run -e test-soil-moisture setelah kabel sensor dipindah
+// ke GPIO32, karena karakteristik ADC1 vs ADC2 bisa sedikit berbeda.
+#define SOIL_MOISTURE_DRY_RAW   2533
+#define SOIL_MOISTURE_WET_RAW   980
 
 #endif // PIN_CONFIG_H
