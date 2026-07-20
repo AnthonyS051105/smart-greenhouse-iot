@@ -69,9 +69,10 @@ void loop() {
   if (millis() - lastPublish > 5000) {
     String topic = String("greenhouse/") + DEVICE_ID + "/sensor";
     String payload = "{\"device_id\":\"" + String(DEVICE_ID) +
+                      "\",\"plot_id\":\"" + String(PLOT_ID) +
                       "\",\"timestamp\":\"1970-01-01T00:00:00Z\"," +
                       "\"temperature\":25.0,\"humidity\":60.0," +
-                      "\"soil_moisture\":-1,\"light_intensity\":-1}";
+                      "\"soil_moisture\":45.0,\"light_intensity\":850.0}";
     bool ok = mqtt.publish(topic.c_str(), payload.c_str());
     Serial.printf("[MQTT] Publish dummy ke %s -> %s\n", topic.c_str(), ok ? "OK" : "GAGAL");
     lastPublish = millis();

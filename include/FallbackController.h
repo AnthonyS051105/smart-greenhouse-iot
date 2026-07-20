@@ -5,9 +5,7 @@
 #include "SensorManager.h"
 #include "ActuatorManager.h"
 
-// Threshold fallback (IOT-FR-16). soil_moisture saat ini masih placeholder
-// (-1) karena sensor belum terpasang, sehingga aturan berbasis soil_moisture
-// otomatis tidak akan terpicu (nilai -1 selalu < ambang, lihat catatan di .cpp).
+// Threshold fallback (IOT-FR-16).
 #define FALLBACK_TEMP_THRESHOLD_C     32.0f
 #define FALLBACK_SOIL_THRESHOLD_PCT   30.0f
 #define FALLBACK_IRRIGATION_SEC       10UL

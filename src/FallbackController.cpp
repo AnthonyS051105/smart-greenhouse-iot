@@ -42,8 +42,6 @@ void FallbackController::evaluate(const SensorData &data) {
     actuator_.open(FALLBACK_IRRIGATION_SEC, "ventilation");
   }
 
-  // soil_moisture placeholder (-1) tidak akan pernah < ambang secara valid;
-  // aturan ini otomatis aktif kembali begitu sensor fisik terpasang.
   if (data.soil_moisture >= 0 && data.soil_moisture < FALLBACK_SOIL_THRESHOLD_PCT) {
     Serial.println("[Fallback] Tanah kering -> buka aktuator (irigasi singkat).");
     actuator_.open(FALLBACK_IRRIGATION_SEC, "irrigation");

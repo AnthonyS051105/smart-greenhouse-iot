@@ -27,20 +27,31 @@ Repo ini adalah **subsistem IoT**: firmware untuk 2 board ESP32 yang membaca sen
 
 ## Status Hardware Saat Ini (sementara, akan berubah)
 
-> **PENTING:** Hardware fisik yang tersedia SEKARANG lebih sedikit dari desain penuh di `docs/SRS.md`/`docs/SDD.md`. Kode firmware saat ini disesuaikan ke keterbatasan ini, tapi tetap modular agar mudah di-extend begitu hardware lengkap tersedia.
+> **PENTING:** Hardware fisik yang tersedia SEKARANG lebih sedikit dari desain penuh di `docs/SRS.md`/`docs/SDD.md` (masih 1 servo, bukan 2; OLED belum ada). Kode firmware tetap modular agar mudah di-extend begitu hardware lengkap tersedia.
 
 | Komponen | Status | Catatan |
 |----------|--------|---------|
-| DHT11 (pin **18**) | ✅ Tersedia | Terpasang & aktif di `SensorManager`. |
-| Servo (pin **21**) | ✅ Tersedia, **hanya 1 unit** | Bukan 2 servo (irigasi+ventilasi terpisah) seperti desain awal. `ActuatorManager` memakai 1 servo generik yang merespons command `actuator` apapun (`irrigation` maupun `ventilation`). |
-| ESP32-CAM | ✅ Tersedia | Firmware terpisah di `src/esp32cam/`, endpoint upload masih placeholder karena backend belum live. |
-| Capacitive Soil Moisture Sensor v1.2 | ❌ Belum ada | Field `soil_moisture` dikirim sebagai **placeholder `-1`** di payload MQTT agar tetap sesuai `data-contracts.md §1.1`. |
-| BH1750 (lux) | ❌ Belum ada | Field `light_intensity` juga placeholder `-1`. |
+| DHT11 (pin **18**) | ✅ Tersedia | Aktif di `SensorManager`. |
+| Servo (pin **19**) | ✅ Tersedia, **hanya 1 unit** | Dipindah dari pin 21 (sekarang dipakai BH1750 SDA) ke pin 19 untuk menghindari konflik. Bukan 2 servo (irigasi+ventilasi terpisah) seperti desain awal — `ActuatorManager` memakai 1 servo generik yang merespons command `actuator` apapun (`irrigation` maupun `ventilation`). |
+| Capacitive Soil Moisture Sensor v1.2 (pin **25**, ADC) | ✅ Tersedia | Aktif di `SoilMoistureManager`. **Kalibrasi `SOIL_MOISTURE_DRY_RAW`/`SOIL_MOISTURE_WET_RAW` di `include/PinConfig.h` masih nilai perkiraan** — wajib dikalibrasi ulang dengan sensor fisik sebelum demo (pakai `pio run -e test-soil-moisture`, lihat IOT-T28). |
+| BH1750 (I2C, SDA=**21** SCL=**22**) | ✅ Tersedia | Aktif di `LightManager`. Alamat default `0x23`. |
+| ESP32-CAM | ✅ Tersedia | Firmware di `src/esp32cam/`, upload ke backend Railway live. |
 | OLED SSD1306 | ❌ Belum ada | Status ditampilkan via **Serial Monitor** saja (`DisplayManager` belum diimplementasikan). |
-| Backend FastAPI (Railway) | ❌ Belum terhubung nyata | ESP32-CAM upload citra & command MQTT akan gagal/kosong sampai backend live — ini kondisi normal, bukan bug. |
-| Mobile app ↔ Firebase | ❌ Belum terhubung nyata | Tidak memengaruhi firmware IoT secara langsung, tapi berarti belum ada validasi end-to-end penuh. |
+| Backend FastAPI (Railway), MQTT (HiveMQ Cloud), Firebase, Cloudinary | ✅ Live & terkonfigurasi | Closed-loop penuh sudah bisa diuji end-to-end. |
 
-**Saat sensor/hardware baru tersedia:** tambahkan pembacaan nyata di `SensorManager::readAll()` (ganti nilai placeholder), dan jika servo ke-2 tersedia, pisahkan kembali menjadi 2 instance `ActuatorManager` (irigasi & ventilasi terpisah) sesuai desain SDD asli.
+**Jika servo ke-2 tersedia:** pisahkan kembali menjadi 2 instance `ActuatorManager` (irigasi & ventilasi terpisah) sesuai desain SDD asli.
+
+### Catatan Integrasi Backend (penting)
+
+Backend FastAPI (`backend/app/`) awalnya dibangun terhadap skema sensor **berbeda** dari `shared/data-contracts.md` (memakai `plot_id`+`water_level`+`N`/`P`/`K`, hasil model AI yang sudah dilatih terhadap dataset lama). Ini sudah **diselaraskan** ke kontrak resmi:
+
+- `backend/app/schemas.py` (`SensorReadingIn`) sekarang menerima `device_id`, `plot_id`, `temperature`, `humidity`, `soil_moisture`, `light_intensity` — persis field payload MQTT firmware ini.
+- `backend/app/services/sensor_service.py` menyimpan `water_level` sebagai **alias** dari `soil_moisture` (representasi fisik yang sama) khusus agar model AI irigasi (`actuator_model.py`, sudah dilatih dengan nama fitur `water_level`) tetap berfungsi tanpa perlu di-retrain.
+- `POST /images` sekarang menerima field `device_id`+`plot_id`+`image` (bukan `plot_id`+`file` versi lama) — cocok dengan `HttpUploader` di `src/esp32cam/`.
+- `POST /irrigation/trigger` sekarang mem-publish command MQTT lengkap sesuai `data-contracts.md §1.2` (`command_id`, `actuator`, `expires_at`, `source`) — sebelumnya hanya `{action, duration_seconds}` yang akan DITOLAK oleh `MqttClient::handleMessage` firmware ini (validasi `expires_at`/idempotensi `command_id` wajib ada).
+- **Firmware TIDAK dilonggarkan** untuk menerima command tanpa `command_id`/`expires_at` — kontrak `data-contracts.md` adalah sumber kebenaran, backend yang menyesuaikan.
+
+Payload sensor firmware ini sekarang menyertakan `plot_id` (dari `config.h`) di luar skema resmi §1.1, semata agar backend bisa langsung mengaitkan `sensor_readings` ke plot tanpa lookup `device_id`→`plot_id` terpisah.
 
 ---
 
@@ -80,7 +91,7 @@ Repo ini adalah **subsistem IoT**: firmware untuk 2 board ESP32 yang membaca sen
 ```bash
 # 1. Salin include/config.example.h -> include/config.h, isi kredensial WiFi & HiveMQ Cloud
 
-# Firmware ESP32 utama (DHT11 + servo + MQTT closed-loop)
+# Firmware ESP32 utama (DHT11 + Soil Moisture v1.2 + BH1750 + servo + MQTT closed-loop)
 pio run -e main -t upload -t monitor
 
 # Firmware ESP32-CAM (ambil citra + upload ke backend)
@@ -92,10 +103,12 @@ pio run -e esp32cam -t upload -t monitor
 Gunakan ini saat mencurigai satu sensor/aktuator tidak berfungsi — masing-masing env hanya mem-flash 1 komponen, tanpa dependensi ke modul lain:
 
 ```bash
-pio run -e test-dht11 -t upload -t monitor       # DHT11 (pin 18) saja
-pio run -e test-servo -t upload -t monitor        # Servo (pin 21) saja
-pio run -e test-wifi-mqtt -t upload -t monitor    # WiFi + MQTT (HiveMQ Cloud) saja
-pio run -e test-camera -t upload -t monitor        # ESP32-CAM: init + capture saja
+pio run -e test-dht11 -t upload -t monitor          # DHT11 (pin 18) saja
+pio run -e test-servo -t upload -t monitor           # Servo (pin 19) saja
+pio run -e test-soil-moisture -t upload -t monitor   # Soil Moisture v1.2 (pin 25) saja -- lihat nilai raw utk kalibrasi
+pio run -e test-bh1750 -t upload -t monitor          # BH1750 (I2C SDA=21 SCL=22) saja
+pio run -e test-wifi-mqtt -t upload -t monitor       # WiFi + MQTT (HiveMQ Cloud) saja
+pio run -e test-camera -t upload -t monitor           # ESP32-CAM: init + capture saja
 ```
 
 **Uji cepat MQTT:** gunakan MQTT client (mis. MQTT Explorer) subscribe ke `greenhouse/#` untuk melihat data masuk.
@@ -134,8 +147,10 @@ Lihat `docs/Task-Breakdown.md`. Fokus P0 dulu:
 iot/
 ├── include/
 │   ├── config.example.h      # Template kredensial (commit ini, bukan config.h)
-│   ├── PinConfig.h            # Pemetaan pin fisik (DHT11=18, Servo=21)
+│   ├── PinConfig.h            # Pemetaan pin fisik (DHT11=18, Servo=19, Soil=25, BH1750 SDA=21/SCL=22)
 │   ├── SensorManager.h
+│   ├── SoilMoistureManager.h
+│   ├── LightManager.h
 │   ├── ActuatorManager.h
 │   ├── WifiManager.h
 │   ├── MqttClient.h
@@ -145,6 +160,8 @@ iot/
 │   └── HttpUploader.h
 ├── src/
 │   ├── SensorManager.cpp
+│   ├── SoilMoistureManager.cpp
+│   ├── LightManager.cpp
 │   ├── ActuatorManager.cpp
 │   ├── WifiManager.cpp
 │   ├── MqttClient.cpp
@@ -156,6 +173,8 @@ iot/
 │   └── tests/                  # Firmware test per-komponen (lihat env test-*)
 │       ├── test_dht11.cpp
 │       ├── test_servo.cpp
+│       ├── test_soil_moisture.cpp
+│       ├── test_bh1750.cpp
 │       ├── test_wifi_mqtt.cpp
 │       └── test_camera.cpp
 ├── platformio.ini              # Multi-environment (main, esp32cam, test-*)

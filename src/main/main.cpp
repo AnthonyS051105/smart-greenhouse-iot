@@ -1,14 +1,14 @@
 // Firmware ESP32 UTAMA — Smart Greenhouse
 //
-// Hardware yang TERSEDIA saat ini: DHT11 (pin 18), Servo generik (pin 21).
-// Soil Moisture Sensor v1.2, BH1750, dan OLED BELUM terpasang -> status
-// ditampilkan via Serial Monitor, dan field soil_moisture/light_intensity
-// dikirim sebagai placeholder (-1) agar payload tetap sesuai
-// shared/data-contracts.md §1.1.
+// Hardware yang TERSEDIA saat ini: DHT11 (pin 18), Servo generik (pin 19),
+// Capacitive Soil Moisture Sensor v1.2 (pin 25, ADC), BH1750 (I2C SDA=21,
+// SCL=22). OLED masih BELUM terpasang -> status ditampilkan via Serial
+// Monitor saja.
 //
-// AI/backend belum terhubung nyata & Mobile app belum terhubung Firebase
-// (lihat memory proyek) -- firmware ini hanya menjalankan sisi IoT:
-// publish sensor, subscribe command, gerakkan servo, fallback lokal.
+// Backend FastAPI (Railway), MQTT (HiveMQ Cloud), Firebase, dan Cloudinary
+// sudah terkonfigurasi & live -- firmware ini closed-loop penuh: publish
+// sensor sesuai shared/data-contracts.md §1.1, subscribe command, gerakkan
+// servo, fallback lokal saat offline.
 
 #include <Arduino.h>
 #include <time.h>
@@ -65,7 +65,9 @@ void setup() {
   delay(500);
   Serial.println("\n=== Smart Greenhouse - ESP32 Utama ===");
 
-  sensorManager.begin();
+  if (!sensorManager.begin()) {
+    Serial.println("[Setup] Peringatan: BH1750 tidak terdeteksi, light_intensity akan NaN.");
+  }
   actuatorManager.begin();
   wifiManager.begin();
   mqttClient.onCommand(onCommandReceived);
@@ -93,7 +95,7 @@ void loop() {
                     data.soil_moisture, data.light_intensity);
 
       if (connected) {
-        String payload = sensorManager.toJson(data, DEVICE_ID);
+        String payload = sensorManager.toJson(data, DEVICE_ID, PLOT_ID);
         mqttClient.publishSensor(payload);
         publishStatus("online");
       } else {
