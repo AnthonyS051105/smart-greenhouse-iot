@@ -20,7 +20,7 @@
 #include "MqttClient.h"
 #include "FallbackController.h"
 
-static const unsigned long READ_INTERVAL_MS = 5UL * 60UL * 1000UL; // 5 menit
+static const unsigned long READ_INTERVAL_MS = 5UL * 1000UL; // 5 detik
 
 SensorManager sensorManager;
 ActuatorManager actuatorManager;

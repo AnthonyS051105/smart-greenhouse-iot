@@ -21,6 +21,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <esp_camera.h>
+#include "esp_system.h"
 
 // ---------- ISI SESUAI config.h KAMU ----------
 #define WIFI_SSID       "Adhyasta"
@@ -53,6 +54,36 @@ static const unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
 
 unsigned long lastCaptureMillis = 0;
 unsigned long lastWifiAttemptMillis = 0;
+
+// ---------------------------------------------------------------------------
+// Diagnostik power-on reason -- brownout adalah penyebab paling umum WiFi
+// gagal connect saat kamera aktif: kamera OV2640 (apalagi PSRAM+SVGA) menambah
+// beban arus terus-menerus di cam_task, sehingga saat radio WiFi butuh
+// lonjakan arus untuk transmit, regulator on-board (via USB-TTL base board)
+// sudah kehabisan headroom. Log ini membuktikan brownout secara eksplisit,
+// bukan cuma dugaan.
+// ---------------------------------------------------------------------------
+void printResetReason() {
+  esp_reset_reason_t reason = esp_reset_reason();
+  Serial.print("[Diag] Reset reason: ");
+  switch (reason) {
+    case ESP_RST_POWERON:   Serial.println("Power-on normal"); break;
+    case ESP_RST_BROWNOUT:
+      Serial.println("BROWNOUT!");
+      Serial.println("[Diag] -> Suplai daya TIDAK CUKUP (kamera+WiFi bareng lewat pin 5V USB-TTL base board).");
+      Serial.println("[Diag] -> Kalau tidak ada adaptor 5V terpisah, kurangi beban kamera (frame size/PSRAM) atau matikan WiFi transmit sementara kamera capture.");
+      break;
+    case ESP_RST_PANIC:     Serial.println("Software panic/crash"); break;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:       Serial.println("Watchdog timeout (kemungkinan hang di suatu proses)"); break;
+    case ESP_RST_DEEPSLEEP: Serial.println("Bangun dari deep sleep"); break;
+    case ESP_RST_SW:        Serial.println("Restart via software (ESP.restart())"); break;
+    default:
+      Serial.printf("Lainnya (kode %d)\n", (int)reason);
+      break;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // WiFi
@@ -111,6 +142,11 @@ bool cameraBegin() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_LATEST;
 
+  // fb_count=1 sempat dicoba untuk menghemat daya, tapi JUSTRU memperparah
+  // DMA overflow (cam_hal) -- dengan cuma 1 buffer, DMA ISR tidak punya
+  // tempat menulis frame baru selagi buffer lama belum di-fb_return(), jadi
+  // overflow beruntun sampai mengganggu WiFi. fb_count=2 (butuh PSRAM)
+  // adalah config yang sudah terbukti bisa capture normal sebelumnya.
   if (psramFound()) {
     config.frame_size = FRAMESIZE_SVGA; // 800x600, cukup untuk analisis vision
     config.jpeg_quality = 12;
@@ -192,8 +228,8 @@ bool uploadImage(camera_fb_t *fb, int maxRetries = 3) {
 
     Serial.printf("[Upload] Gagal (percobaan %d/%d), kode=%d\n", attempt, maxRetries, httpCode);
     http.end();
-    delay(1000);
   }
+  delay(1000);
 
   Serial.println("[Upload] Gagal setelah semua percobaan, lewati siklus ini.");
   return false;
@@ -207,6 +243,8 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println("\n=== Smart Greenhouse - ESP32-CAM ===");
+
+  printResetReason();
 
   // Kamera WAJIB diinisialisasi SEBELUM WiFi -- keduanya berbagi resource
   // internal ESP32 (DMA channel, RF/clock timing).

@@ -2,7 +2,7 @@
 #include <string.h>
 
 ActuatorManager::ActuatorManager()
-    : open_(false), closeAtMillis_(0) {
+    : open_(false), closeAtMillis_(0), hasTimeout_(false) {
   lastSource_[0] = '\0';
 }
 
@@ -15,7 +15,8 @@ void ActuatorManager::begin() {
 void ActuatorManager::open(unsigned long durationSec, const char *sourceActuator) {
   servo.write(SERVO_ANGLE_OPEN);
   open_ = true;
-  closeAtMillis_ = millis() + (durationSec * 1000UL);
+  hasTimeout_ = durationSec > 0;
+  closeAtMillis_ = hasTimeout_ ? millis() + (durationSec * 1000UL) : 0;
   strncpy(lastSource_, sourceActuator, sizeof(lastSource_) - 1);
   lastSource_[sizeof(lastSource_) - 1] = '\0';
 }
@@ -23,11 +24,12 @@ void ActuatorManager::open(unsigned long durationSec, const char *sourceActuator
 void ActuatorManager::close() {
   servo.write(SERVO_ANGLE_CLOSED);
   open_ = false;
+  hasTimeout_ = false;
   closeAtMillis_ = 0;
 }
 
 void ActuatorManager::update() {
-  if (open_ && millis() >= closeAtMillis_) {
+  if (open_ && hasTimeout_ && millis() >= closeAtMillis_) {
     close();
   }
 }

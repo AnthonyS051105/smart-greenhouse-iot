@@ -20,6 +20,9 @@ class ActuatorManager {
   void begin();
 
   // Buka servo selama durationSec detik, lalu otomatis tutup di update().
+  // durationSec == 0 berarti servo tetap terbuka tanpa batas waktu, sampai
+  // ada command "close" eksplisit (dipakai saat command dari mobile tidak
+  // menyertakan duration_seconds -- lihat data-contracts.md §1.2).
   // sourceActuator dipakai hanya untuk logging/status ("irrigation"/"ventilation").
   void open(unsigned long durationSec, const char *sourceActuator);
 
@@ -36,6 +39,7 @@ class ActuatorManager {
   Servo servo;
   bool open_;
   unsigned long closeAtMillis_;
+  bool hasTimeout_;
   char lastSource_[16];
 };
 
